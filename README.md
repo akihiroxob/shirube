@@ -1,138 +1,209 @@
-# shirube
+# Shirube
 
 Agent Control Plane for turning missions into evidence-backed outcomes and continuously improving agent execution.
-
-## Role in the agent system
 
 ```text
 Shirube          WHY / WHAT / LEARNING
 Wacha            WORK
-Ralph            REPEATED WORK EXECUTION
+Ralph            repeated Worker / Reviewer execution
 agent-foundation HOW
-Product repo     IMPLEMENTATION ARTIFACTS
 ```
 
-Shirube manages the durable upstream and learning state around agent execution.
+Shirube keeps upstream intent and the improvement trail outside product repositories so humans can inspect the same durable state that agents use through MCP.
 
-```text
-Mission
-  -> Research / Evidence
-  -> Decision
-  -> Vision
-  -> Outcome
-  -> Wacha
-  -> Result
-  -> Outcome Evaluation
-  -> Improvement
-```
+## Current MVP
 
-The primary goal is traceability: a human should be able to inspect why a Vision, Outcome, Wacha Story, or improvement exists and follow its supporting evidence and decisions.
+The initial implementation includes:
 
-## High-level architecture
+- Project
+- Mission
+- Research / Evidence
+- Decision
+- Vision
+- Outcome
+- Human Decision Request
+- provenance relations (`derived_from`, `supported_by`, etc.)
+- append-only Change Log
+- Manager Work claim / lease
+- Agent Run history with pinned `foundationRef`
+- Improvement Observation / Finding / Proposal / Evaluation
+- HTTP API
+- stateless MCP endpoint
+- minimal Browser UI
+- a small Manager Runner
+
+Worker and Reviewer execution are intentionally **not** included. They remain separate Ralph loops driven by Wacha.
+
+## Architecture
 
 ```text
 Human
   |
 Browser
-  |
   v
-Shirube Server
-  - Web UI
-  - HTTP API
-  - MCP
-  - Database
-  - Change Log
-  |
-  | Manager work
-  v
-Manager Runner
-  |
-  | launches one fresh Manager Agent
-  v
-Manager Agent
-  |              \
-  | MCP           \ MCP
-  v                v
-Shirube           Wacha
-                    |
-               +----+----+
-               |         |
-          Worker Ralph Reviewer Ralph
++----------------------+
+| Shirube              |
+| UI / API / MCP / DB  |
+|                      |
+| Mission -> Outcome   |
+| Improvement          |
++----------+-----------+
+           |
+      Manager Work
+           v
++----------------------+
+| Manager Runner       |
+| launches Manager only|
++----------+-----------+
+           |
+           v
+      Manager Agent
+       /       \
+  MCP /         \ MCP
+     v           v
+ Shirube        Wacha
+                  |
+             Worker Ralph
+             Reviewer Ralph
+
+agent-foundation -> Skills / Instructions / Policy / Profiles used by agents
 ```
 
-Manager Runner launches **Manager Agents only**. Worker and Reviewer execution remain separate Ralph loops.
+See [`docs/initial-design.md`](docs/initial-design.md) for the detailed domain and integration design.
 
-Reusable agent behavior is not stored in Shirube. Skills, instructions, reusable knowledge, policies, hooks, and runtime adapters live in `agent-foundation`; Shirube stores the selected profile/version and the provenance of changes.
+## Stack
 
-## Core domains
+Shirube intentionally follows Wacha's implementation family:
 
-- **Intent**: Mission, Research, Evidence, Decision, Vision, Outcome
-- **Execution**: Manager Work, Agent Run, Human Gate, links to Wacha
-- **Improvement**: Observation, Finding, Proposal, Evaluation
-- **Provenance**: durable relationships explaining why artifacts exist
+- TypeScript
+- Hono
+- SQLite (`better-sqlite3`)
+- React + Vite
+- Model Context Protocol SDK
+- Zod
 
-## Two mandatory loops
+## Setup
 
-### Delivery Loop
-
-```text
-Mission
-  -> Vision
-  -> Outcome
-  -> Wacha
-  -> Result
-  -> Outcome Evaluation
-  -> next action
+```bash
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-### Improvement Loop
+- API / MCP server: `http://localhost:51743`
+- Browser UI (development): `http://localhost:51744`
+- MCP: `http://localhost:51743/mcp`
+- Health: `http://localhost:51743/health`
+
+Production-style build:
+
+```bash
+npm run build
+npm start
+```
+
+The frontend is built into `public/` and served by the Hono server.
+
+## First use
+
+Create a Project from the Browser UI, then add a Mission.
+
+Creating a Mission automatically creates `ManagerWork` with reason:
 
 ```text
-Agent Run / Wacha result
-  -> Observe
-  -> Diagnose
-  -> Improvement Proposal
-  -> Evaluate
+MISSION_REVIEW_REQUIRED
+```
+
+This is the wake-up signal for the Manager Runner.
+
+## MCP
+
+The MCP endpoint is stateless and currently assumes a trusted local environment like Wacha's initial adapter.
+
+Use:
+
+```http
+Authorization: Bearer <AgentName>
+```
+
+Initial tools include:
+
+```text
+list_projects
+get_project_overview
+create_mission
+record_research
+record_evidence
+record_decision
+create_vision
+create_outcome
+request_human_decision
+link_artifacts
+record_improvement_observation
+create_improvement_finding
+create_improvement_proposal
+record_improvement_evaluation
+list_changes
+```
+
+Durable Research / Evidence / Decision artifacts are the source of truth. Chat history is not.
+
+## Manager Runner
+
+The Manager Runner watches only Shirube's Manager Work. It does not launch Worker or Reviewer processes.
+
+Configure a command:
+
+```bash
+export MANAGER_COMMAND='codex exec "Handle the Shirube manager work identified by SHIRUBE_MANAGER_WORK_ID."'
+npm run manager-runner
+```
+
+Each run receives environment variables including:
+
+```text
+SHIRUBE_MANAGER_WORK_ID
+SHIRUBE_PROJECT_ID
+SHIRUBE_SUBJECT_TYPE
+SHIRUBE_SUBJECT_ID
+SHIRUBE_REASON_TYPE
+SHIRUBE_AGENT_RUN_ID
+SHIRUBE_FOUNDATION_REF
+SHIRUBE_MANAGER_PROFILE
+```
+
+`foundationRef` is recorded on every Agent Run so later behavior changes can be traced and rolled back.
+
+## Improvement loop
+
+Improvement is a required closed loop:
+
+```text
+Run / Wacha Result / Outcome Result
+  -> Observation
+  -> Finding
+  -> Proposal
+  -> Evaluation
   -> Project Context or agent-foundation
-  -> next Agent Run
+  -> next Run
 ```
 
-Generalizable improvements should be implemented in `agent-foundation` through normal Wacha / Ralph implementation and review rather than by allowing Shirube to mutate Foundation content directly.
-
-## Initial deployment
-
-Shirube should begin as a modular monolith plus one small runner process.
+Generalizable changes should not be written directly to agent-foundation by Shirube. The intended path is:
 
 ```text
-apps/
-  server/          UI + HTTP API + MCP
-  manager-runner/  Manager work watcher / launcher
-
-packages/
-  project/
-  intent/
-  research/
-  decision/
-  outcome/
-  execution/
-  improvement/
-  provenance/
-  mcp/
-  shared/
+Improvement Proposal
+  -> Wacha Story in agent-foundation project
+  -> Worker Ralph
+  -> Reviewer Ralph
+  -> Manager acceptance
+  -> agent-foundation release
+  -> Shirube adopts pinned foundationRef
 ```
 
-Avoid premature microservices and message brokers. Use relational persistence, explicit domain state, and an append-only Change Log first.
+## Tests
 
-## Design
+```bash
+npm test
+```
 
-See [docs/initial-design.md](docs/initial-design.md) for the initial domain model, interfaces, Manager Runner responsibility, Wacha integration, human gates, and the mandatory improvement loop.
-
-## MVP sequence
-
-1. Intent trail: Mission -> Research -> Decision -> Vision -> Outcome
-2. Manager Runner and Agent Run history
-3. Outcome -> Wacha handoff and traceability
-4. Human Decision Requests
-5. Closed improvement loop into project context / agent-foundation
-
-The MVP is successful when a human can provide a Mission, agents can derive and execute evidence-backed Outcomes through Wacha/Ralph, the result can be evaluated, and execution knowledge can improve subsequent runs.
+The first tests cover Mission wake-up and provenance linking.
