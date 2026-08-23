@@ -6,3 +6,12 @@ public/
 *.db-shm
 *.db-wal
 .DS_Store
+
+
+# agent
+.agents
+.claude
+.codex
+.mcp.jspn
+# APM dependencies
+apm_modules/

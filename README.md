@@ -25,7 +25,7 @@ The initial implementation includes:
 - provenance relations (`derived_from`, `supported_by`, etc.)
 - append-only Change Log
 - Manager Work claim / lease
-- Agent Run history with pinned `foundationRef`
+- Agent Run history with an optional pinned `foundationRef`
 - Improvement Observation / Finding / Proposal / Evaluation
 - HTTP API
 - stateless MCP endpoint
@@ -90,10 +90,10 @@ cp .env.example .env
 npm run dev
 ```
 
-- API / MCP server: `http://localhost:51743`
+- API / MCP server: `http://localhost:51740`
 - Browser UI (development): `http://localhost:51744`
-- MCP: `http://localhost:51743/mcp`
-- Health: `http://localhost:51743/health`
+- MCP: `http://localhost:51740/mcp`
+- Health: `http://localhost:51740/health`
 
 Production-style build:
 
@@ -106,7 +106,12 @@ The frontend is built into `public/` and served by the Hono server.
 
 ## First use
 
-Create a Project from the Browser UI, then add a Mission.
+Open `/projects` to see the Project list. Create a Project from `/projects/new`;
+after creation, Shirube opens `/projects/:projectId`, where Missions can be added.
+
+`foundationRef` is optional. When agent-foundation is used, it must identify an
+immutable Git commit, for example
+`https://github.com/example/agent-foundation.git#<40-character commit SHA>`.
 
 Creating a Mission automatically creates `ManagerWork` with reason:
 
@@ -168,11 +173,12 @@ SHIRUBE_SUBJECT_TYPE
 SHIRUBE_SUBJECT_ID
 SHIRUBE_REASON_TYPE
 SHIRUBE_AGENT_RUN_ID
-SHIRUBE_FOUNDATION_REF
+SHIRUBE_FOUNDATION_REF  # set only when the Project configures agent-foundation
 SHIRUBE_MANAGER_PROFILE
 ```
 
-`foundationRef` is recorded on every Agent Run so later behavior changes can be traced and rolled back.
+When configured, `foundationRef` is recorded on the Agent Run so later behavior
+changes can be traced and rolled back.
 
 ## Improvement loop
 

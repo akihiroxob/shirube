@@ -1,10 +1,24 @@
 import { z } from "zod";
-import { ARTIFACT_TYPES, RELATION_TYPES } from "./domain.js";
+import {
+  ARTIFACT_TYPES,
+  RELATION_TYPES,
+  isPinnedFoundationRef,
+} from "./domain.js";
+
+export const foundationRefSchema = z
+  .string()
+  .trim()
+  .refine(isPinnedFoundationRef, {
+    message: "foundationRef must end with an immutable 40- or 64-character commit SHA",
+  });
 
 export const projectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  foundationRef: z.string().min(1).optional(),
+  foundationRef: z
+    .union([foundationRefSchema, z.literal("")])
+    .optional()
+    .transform((value) => value || undefined),
   managerProfile: z.string().min(1).optional(),
 });
 

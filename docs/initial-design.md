@@ -199,7 +199,8 @@ It must not make product or technical decisions.
 
 ### 4.5 Agent runtime -> agent-foundation
 
-The Manager Runner resolves a pinned agent-foundation version and builds the runtime from it.
+When a Project configures agent-foundation, the Manager Runner resolves its pinned
+version and builds the runtime from it.
 
 agent-foundation is the source of truth for reusable HOW:
 
@@ -211,7 +212,8 @@ agent-foundation is the source of truth for reusable HOW:
 - Hooks
 - Codex / Claude Code adapters
 
-Shirube stores which version/profile should be used for a project. It does not duplicate their contents.
+Shirube may store which version/profile should be used for a project. It does not
+duplicate their contents.
 
 ## 5. Manager Runner responsibility
 
@@ -229,7 +231,7 @@ Manager Runner
       |
       +-- atomically claim work
       +-- resolve Agent Profile
-      +-- resolve agent-foundation version
+      +-- resolve agent-foundation version when configured
       +-- prepare runtime / credentials / MCP endpoints
       +-- launch one fresh Manager Agent run
       +-- record exit/result
@@ -287,13 +289,14 @@ Project
   description
   status
   wachaProjectId?
-  foundationRef
+  foundationRef?
   managerProfile
   createdAt
   updatedAt
 ```
 
-`foundationRef` must be pinned to a version, tag, or immutable revision for reproducible Agent Runs.
+`foundationRef` is optional. When configured, it must be pinned to a version, tag,
+or immutable revision for reproducible Agent Runs.
 
 ### 7.2 Mission
 
@@ -489,7 +492,7 @@ AgentRun
   projectId
   workId
   agentProfile
-  foundationRef
+  foundationRef?
   runtime
   model?
   status: queued | running | succeeded | failed | canceled
@@ -854,7 +857,7 @@ This keeps improvement changes auditable and subject to the same implementation 
 
 ### 12.3 Version pinning
 
-Every AgentRun records the exact `foundationRef` used.
+Every AgentRun that uses agent-foundation records the exact `foundationRef` used.
 
 Do not silently use `latest`.
 

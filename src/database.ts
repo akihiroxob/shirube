@@ -88,7 +88,8 @@ export class ShirubeDatabase {
       CREATE TABLE IF NOT EXISTS agent_runs (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        work_id TEXT NOT NULL,
+        work_id TEXT NOT NULL REFERENCES manager_work(id) ON DELETE CASCADE,
+        work_attempt INTEGER NOT NULL,
         agent_profile TEXT NOT NULL,
         foundation_ref TEXT NOT NULL,
         runtime TEXT NOT NULL,
@@ -101,6 +102,34 @@ export class ShirubeDatabase {
       );
       CREATE INDEX IF NOT EXISTS idx_agent_runs_project_started
         ON agent_runs(project_id, started_at DESC);
+    `);
+
+    const agentRunColumns = this.raw
+      .prepare("PRAGMA table_info(agent_runs)")
+      .all() as Array<{ name: string }>;
+    if (!agentRunColumns.some((column) => column.name === "work_attempt")) {
+      this.raw.exec(`
+        ALTER TABLE agent_runs
+          ADD COLUMN work_attempt INTEGER NOT NULL DEFAULT 0;
+        UPDATE agent_runs SET work_attempt = -rowid WHERE work_attempt = 0;
+      `);
+    }
+
+    this.raw.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_runs_work_attempt
+        ON agent_runs(work_id, work_attempt);
+
+      CREATE TRIGGER IF NOT EXISTS validate_agent_run_work_insert
+      BEFORE INSERT ON agent_runs
+      WHEN NOT EXISTS (
+        SELECT 1 FROM manager_work
+        WHERE id = NEW.work_id
+          AND project_id = NEW.project_id
+          AND attempt = NEW.work_attempt
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'AgentRun must reference the current ManagerWork attempt');
+      END;
     `);
   }
 }

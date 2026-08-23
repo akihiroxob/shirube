@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const baseUrl = process.env.SHIRUBE_URL ?? "http://localhost:51743";
+const baseUrl = process.env.SHIRUBE_URL ?? "http://localhost:51740";
 const runnerId = process.env.MANAGER_RUNNER_ID ?? `manager-runner-${process.pid}`;
 const pollMs = Number(process.env.MANAGER_POLL_MS ?? "2000");
 const leaseSeconds = Number(process.env.MANAGER_LEASE_SECONDS ?? "900");
@@ -14,6 +14,7 @@ if (!command) {
 type ManagerWork = {
   id: string;
   projectId: string;
+  attempt: number;
   reasonType: string;
   subjectType: string;
   subjectId: string;
@@ -21,7 +22,7 @@ type ManagerWork = {
 
 type ProjectOverview = {
   project: {
-    foundationRef: string;
+    foundationRef: string | null;
     managerProfile: string;
   };
 };
@@ -38,11 +39,17 @@ const postJson = async <T>(path: string, body: unknown): Promise<T> => {
   return (await response.json()) as T;
 };
 
-const runCommand = (work: ManagerWork, overview: ProjectOverview, runId: string) =>
+const runCommand = (
+  work: ManagerWork,
+  overview: ProjectOverview,
+  runId: string,
+  signal: AbortSignal,
+) =>
   new Promise<number>((resolve) => {
     const child = spawn(command!, {
       shell: true,
       stdio: "inherit",
+      detached: process.platform !== "win32",
       env: {
         ...process.env,
         SHIRUBE_MANAGER_WORK_ID: work.id,
@@ -51,11 +58,32 @@ const runCommand = (work: ManagerWork, overview: ProjectOverview, runId: string)
         SHIRUBE_SUBJECT_ID: work.subjectId,
         SHIRUBE_REASON_TYPE: work.reasonType,
         SHIRUBE_AGENT_RUN_ID: runId,
-        SHIRUBE_FOUNDATION_REF: overview.project.foundationRef,
         SHIRUBE_MANAGER_PROFILE: overview.project.managerProfile,
+        ...(overview.project.foundationRef
+          ? { SHIRUBE_FOUNDATION_REF: overview.project.foundationRef }
+          : {}),
       },
     });
-    child.on("exit", (code) => resolve(code ?? 1));
+    let settled = false;
+    const finish = (code: number) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", terminate);
+      resolve(code);
+    };
+    const terminate = () => {
+      if (!child.pid) return;
+      try {
+        if (process.platform === "win32") child.kill("SIGTERM");
+        else process.kill(-child.pid, "SIGTERM");
+      } catch {
+        child.kill("SIGTERM");
+      }
+    };
+    signal.addEventListener("abort", terminate, { once: true });
+    child.on("error", () => finish(1));
+    child.on("exit", (code) => finish(code ?? 1));
+    if (signal.aborted) terminate();
   });
 
 const tick = async () => {
@@ -76,29 +104,47 @@ const tick = async () => {
   const run = await postJson<{ id: string }>("/api/agent-runs", {
     projectId: work.projectId,
     workId: work.id,
+    workAttempt: work.attempt,
+    owner: runnerId,
     agentProfile: overview.project.managerProfile,
-    foundationRef: overview.project.foundationRef,
+    foundationRef: overview.project.foundationRef ?? undefined,
     runtime: "manager-runner",
   });
 
+  const commandController = new AbortController();
+  let leaseValid = true;
   const renewTimer = setInterval(() => {
     postJson(`/api/manager-work/${work.id}/renew`, {
       owner: runnerId,
+      attempt: work.attempt,
       leaseSeconds,
-    }).catch((error) => console.error("Failed to renew Manager Work:", error));
+    }).catch((error) => {
+      leaseValid = false;
+      console.error("Manager Work lease was lost; stopping Manager:", error);
+      commandController.abort();
+    });
   }, Math.max(15_000, Math.floor((leaseSeconds * 1000) / 2)));
 
-  const exitCode = await runCommand(work, overview, run.id);
+  const exitCode = await runCommand(
+    work,
+    overview,
+    run.id,
+    commandController.signal,
+  );
   clearInterval(renewTimer);
+  if (!leaseValid) return;
   const success = exitCode === 0;
 
   await postJson(`/api/agent-runs/${run.id}/finish`, {
     success,
+    owner: runnerId,
+    workAttempt: work.attempt,
     resultSummary: success ? "Manager command completed." : undefined,
     errorSummary: success ? undefined : `Manager command exited with ${exitCode}.`,
   });
   await postJson(`/api/manager-work/${work.id}/complete`, {
     owner: runnerId,
+    attempt: work.attempt,
     success,
   });
 };

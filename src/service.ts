@@ -3,6 +3,7 @@ import { ShirubeDatabase } from "./database.js";
 import {
   ARTIFACT_TYPES,
   RELATION_TYPES,
+  isPinnedFoundationRef,
   type AgentRun,
   type Artifact,
   type ArtifactRelation,
@@ -22,17 +23,23 @@ export class ControlPlaneService {
   createProject(input: {
     name: string;
     description?: string;
-    foundationRef?: string;
+    foundationRef?: string | null;
     managerProfile?: string;
     actor: string;
   }): Project {
+    const foundationRef = input.foundationRef?.trim() || null;
+    if (foundationRef && !isPinnedFoundationRef(foundationRef)) {
+      throw new Error(
+        "foundationRef must end with an immutable 40- or 64-character commit SHA",
+      );
+    }
     const id = randomUUID();
     const timestamp = now();
     const project: Project = {
       id,
       name: input.name.trim(),
       description: input.description?.trim() || null,
-      foundationRef: input.foundationRef?.trim() || "akihiroxob/agent-foundation#main",
+      foundationRef,
       managerProfile: input.managerProfile?.trim() || "manager",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -46,7 +53,7 @@ export class ControlPlaneService {
       project.id,
       project.name,
       project.description,
-      project.foundationRef,
+      project.foundationRef ?? "",
       project.managerProfile,
       project.createdAt,
       project.updatedAt,
@@ -73,7 +80,7 @@ export class ControlPlaneService {
       id: row.id!,
       name: row.name!,
       description: row.description,
-      foundationRef: row.foundation_ref!,
+      foundationRef: row.foundation_ref || null,
       managerProfile: row.manager_profile!,
       createdAt: row.created_at!,
       updatedAt: row.updated_at!,
@@ -90,7 +97,7 @@ export class ControlPlaneService {
       id: row.id!,
       name: row.name!,
       description: row.description,
-      foundationRef: row.foundation_ref!,
+      foundationRef: row.foundation_ref || null,
       managerProfile: row.manager_profile!,
       createdAt: row.created_at!,
       updatedAt: row.updated_at!,
@@ -333,40 +340,62 @@ export class ControlPlaneService {
     return tx();
   }
 
-  renewManagerWork(id: string, owner: string, leaseSeconds = 300) {
-    const work = this.getManagerWork(id);
-    if (work.status !== "running" || work.claimOwner !== owner) {
-      throw new Error("Manager work is not owned by this runner");
-    }
+  renewManagerWork(
+    id: string,
+    owner: string,
+    attempt: number,
+    leaseSeconds = 300,
+  ) {
+    const timestamp = now();
     const expiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
-    this.db.raw.prepare(`
+    const result = this.db.raw.prepare(`
       UPDATE manager_work
       SET claim_expires_at = ?, updated_at = ?
-      WHERE id = ? AND status = 'running' AND claim_owner = ?
-    `).run(expiresAt, now(), id, owner);
+      WHERE id = ?
+        AND status = 'running'
+        AND claim_owner = ?
+        AND attempt = ?
+        AND claim_expires_at > ?
+    `).run(expiresAt, timestamp, id, owner, attempt, timestamp);
+    if (result.changes !== 1) {
+      throw new Error("Manager work lease is expired or owned by another claim");
+    }
     return this.getManagerWork(id);
   }
 
-  completeManagerWork(id: string, owner: string, success: boolean) {
-    const work = this.getManagerWork(id);
-    if (work.status !== "running" || work.claimOwner !== owner) {
-      throw new Error("Manager work is not owned by this runner");
-    }
-    const status = success ? "completed" : "failed";
-    this.db.raw.prepare(`
-      UPDATE manager_work
-      SET status = ?, claim_expires_at = NULL, updated_at = ?
-      WHERE id = ?
-    `).run(status, now(), id);
-    this.appendChange(
-      work.projectId,
-      success ? "MANAGER_WORK_COMPLETED" : "MANAGER_WORK_FAILED",
-      "manager_work",
-      work.id,
-      owner,
-      { reasonType: work.reasonType },
-    );
-    return this.getManagerWork(id);
+  completeManagerWork(
+    id: string,
+    owner: string,
+    attempt: number,
+    success: boolean,
+  ) {
+    const tx = this.db.raw.transaction(() => {
+      const work = this.getManagerWork(id);
+      const status = success ? "completed" : "failed";
+      const timestamp = now();
+      const result = this.db.raw.prepare(`
+        UPDATE manager_work
+        SET status = ?, claim_expires_at = NULL, updated_at = ?
+        WHERE id = ?
+          AND status = 'running'
+          AND claim_owner = ?
+          AND attempt = ?
+          AND claim_expires_at > ?
+      `).run(status, timestamp, id, owner, attempt, timestamp);
+      if (result.changes !== 1) {
+        throw new Error("Manager work lease is expired or owned by another claim");
+      }
+      this.appendChange(
+        work.projectId,
+        success ? "MANAGER_WORK_COMPLETED" : "MANAGER_WORK_FAILED",
+        "manager_work",
+        work.id,
+        owner,
+        { reasonType: work.reasonType, attempt },
+      );
+      return this.getManagerWork(id);
+    });
+    return tx();
   }
 
   listManagerWork(projectId?: string): ManagerWork[] {
@@ -383,83 +412,159 @@ export class ControlPlaneService {
   recordAgentRunStart(input: {
     projectId: string;
     workId: string;
+    workAttempt: number;
+    owner: string;
     agentProfile: string;
-    foundationRef: string;
+    foundationRef?: string | null;
     runtime: string;
     model?: string;
   }): AgentRun {
-    this.getProject(input.projectId);
-    const run: AgentRun = {
-      id: randomUUID(),
-      projectId: input.projectId,
-      workId: input.workId,
-      agentProfile: input.agentProfile,
-      foundationRef: input.foundationRef,
-      runtime: input.runtime,
-      model: input.model ?? null,
-      status: "running",
-      startedAt: now(),
-      finishedAt: null,
-      resultSummary: null,
-      errorSummary: null,
-    };
-    this.db.raw.prepare(`
-      INSERT INTO agent_runs
-      (id, project_id, work_id, agent_profile, foundation_ref, runtime, model, status, started_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      run.id,
-      run.projectId,
-      run.workId,
-      run.agentProfile,
-      run.foundationRef,
-      run.runtime,
-      run.model,
-      run.status,
-      run.startedAt,
-    );
-    this.appendChange(
-      run.projectId,
-      "AGENT_RUN_STARTED",
-      "agent_run",
-      run.id,
-      run.agentProfile,
-      { workId: run.workId, foundationRef: run.foundationRef },
-    );
-    return run;
+    const tx = this.db.raw.transaction(() => {
+      const project = this.getProject(input.projectId);
+      const work = this.getManagerWork(input.workId);
+      this.assertActiveClaim(work, input.owner, input.workAttempt);
+      if (work.projectId !== input.projectId) {
+        throw new Error("Manager work does not belong to the requested project");
+      }
+      const foundationRef = input.foundationRef?.trim() || null;
+      if (
+        project.foundationRef !== foundationRef ||
+        project.managerProfile !== input.agentProfile
+      ) {
+        throw new Error("AgentRun profile or foundationRef does not match the project");
+      }
+
+      const existing = this.db.raw.prepare(`
+        SELECT * FROM agent_runs WHERE work_id = ? AND work_attempt = ?
+      `).get(input.workId, input.workAttempt) as
+        | Record<string, string | number | null>
+        | undefined;
+      if (existing) {
+        const run = this.mapAgentRun(existing);
+        if (run.status !== "running") {
+          throw new Error("AgentRun for this ManagerWork attempt is already finished");
+        }
+        return run;
+      }
+
+      const staleRuns = this.db.raw.prepare(`
+        SELECT * FROM agent_runs WHERE work_id = ? AND status = 'running'
+      `).all(input.workId) as Array<Record<string, string | number | null>>;
+      for (const staleRow of staleRuns) {
+        const staleRun = this.mapAgentRun(staleRow);
+        const finishedAt = now();
+        this.db.raw.prepare(`
+          UPDATE agent_runs
+          SET status = 'canceled', finished_at = ?, error_summary = ?
+          WHERE id = ? AND status = 'running'
+        `).run(
+          finishedAt,
+          "Superseded by a newer ManagerWork claim.",
+          staleRun.id,
+        );
+        this.appendChange(
+          staleRun.projectId,
+          "AGENT_RUN_CANCELED",
+          "agent_run",
+          staleRun.id,
+          "manager-runner",
+          { workId: staleRun.workId, workAttempt: staleRun.workAttempt },
+        );
+      }
+
+      const run: AgentRun = {
+        id: randomUUID(),
+        projectId: input.projectId,
+        workId: input.workId,
+        workAttempt: input.workAttempt,
+        agentProfile: input.agentProfile,
+        foundationRef,
+        runtime: input.runtime,
+        model: input.model ?? null,
+        status: "running",
+        startedAt: now(),
+        finishedAt: null,
+        resultSummary: null,
+        errorSummary: null,
+      };
+      this.db.raw.prepare(`
+        INSERT INTO agent_runs
+        (id, project_id, work_id, work_attempt, agent_profile, foundation_ref,
+         runtime, model, status, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        run.id,
+        run.projectId,
+        run.workId,
+        run.workAttempt,
+        run.agentProfile,
+        run.foundationRef ?? "",
+        run.runtime,
+        run.model,
+        run.status,
+        run.startedAt,
+      );
+      this.appendChange(
+        run.projectId,
+        "AGENT_RUN_STARTED",
+        "agent_run",
+        run.id,
+        run.agentProfile,
+        {
+          workId: run.workId,
+          workAttempt: run.workAttempt,
+          foundationRef: run.foundationRef,
+        },
+      );
+      return run;
+    });
+    return tx();
   }
 
   recordAgentRunFinish(input: {
     runId: string;
     success: boolean;
+    owner: string;
+    workAttempt: number;
     resultSummary?: string;
     errorSummary?: string;
   }): AgentRun {
-    const row = this.db.raw.prepare(`SELECT project_id FROM agent_runs WHERE id = ?`).get(input.runId) as
-      | { project_id: string }
-      | undefined;
-    if (!row) throw new Error(`AgentRun not found: ${input.runId}`);
-    const status = input.success ? "succeeded" : "failed";
-    this.db.raw.prepare(`
-      UPDATE agent_runs
-      SET status = ?, finished_at = ?, result_summary = ?, error_summary = ?
-      WHERE id = ?
-    `).run(
-      status,
-      now(),
-      input.resultSummary ?? null,
-      input.errorSummary ?? null,
-      input.runId,
-    );
-    this.appendChange(
-      row.project_id,
-      input.success ? "AGENT_RUN_SUCCEEDED" : "AGENT_RUN_FAILED",
-      "agent_run",
-      input.runId,
-      "manager-runner",
-      {},
-    );
-    return this.getAgentRun(input.runId);
+    const tx = this.db.raw.transaction(() => {
+      const row = this.db.raw.prepare(`SELECT * FROM agent_runs WHERE id = ?`).get(input.runId) as
+        | Record<string, string | number | null>
+        | undefined;
+      if (!row) throw new Error(`AgentRun not found: ${input.runId}`);
+      const current = this.mapAgentRun(row);
+      if (current.status !== "running") return current;
+      if (current.workAttempt !== input.workAttempt) {
+        throw new Error("AgentRun does not belong to this ManagerWork attempt");
+      }
+      const work = this.getManagerWork(current.workId);
+      this.assertActiveClaim(work, input.owner, input.workAttempt);
+      const status = input.success ? "succeeded" : "failed";
+      const result = this.db.raw.prepare(`
+        UPDATE agent_runs
+        SET status = ?, finished_at = ?, result_summary = ?, error_summary = ?
+        WHERE id = ? AND status = 'running'
+      `).run(
+        status,
+        now(),
+        input.resultSummary ?? null,
+        input.errorSummary ?? null,
+        input.runId,
+      );
+      if (result.changes !== 1) return this.getAgentRun(input.runId);
+      this.appendChange(
+        current.projectId,
+        input.success ? "AGENT_RUN_SUCCEEDED" : "AGENT_RUN_FAILED",
+        "agent_run",
+        input.runId,
+        "manager-runner",
+        { workId: current.workId, workAttempt: current.workAttempt },
+      );
+      return this.getAgentRun(input.runId);
+    });
+    return tx();
   }
 
   listAgentRuns(projectId: string): AgentRun[] {
@@ -511,10 +616,26 @@ export class ControlPlaneService {
 
   private getAgentRun(id: string): AgentRun {
     const row = this.db.raw.prepare(`SELECT * FROM agent_runs WHERE id = ?`).get(id) as
-      | Record<string, string | null>
+      | Record<string, string | number | null>
       | undefined;
     if (!row) throw new Error(`AgentRun not found: ${id}`);
     return this.mapAgentRun(row);
+  }
+
+  private assertActiveClaim(
+    work: ManagerWork,
+    owner: string,
+    attempt: number,
+  ) {
+    if (
+      work.status !== "running" ||
+      work.claimOwner !== owner ||
+      work.attempt !== attempt ||
+      !work.claimExpiresAt ||
+      work.claimExpiresAt <= now()
+    ) {
+      throw new Error("Manager work lease is expired or owned by another claim");
+    }
   }
 
   private appendChange(
@@ -570,20 +691,25 @@ export class ControlPlaneService {
     };
   }
 
-  private mapAgentRun(row: Record<string, string | null>): AgentRun {
+  private mapAgentRun(
+    row: Record<string, string | number | null>,
+  ): AgentRun {
     return {
-      id: row.id!,
-      projectId: row.project_id!,
-      workId: row.work_id!,
-      agentProfile: row.agent_profile!,
-      foundationRef: row.foundation_ref!,
-      runtime: row.runtime!,
-      model: row.model,
-      status: row.status! as AgentRun["status"],
-      startedAt: row.started_at!,
-      finishedAt: row.finished_at,
-      resultSummary: row.result_summary,
-      errorSummary: row.error_summary,
+      id: String(row.id),
+      projectId: String(row.project_id),
+      workId: String(row.work_id),
+      workAttempt: Number(row.work_attempt),
+      agentProfile: String(row.agent_profile),
+      foundationRef: row.foundation_ref ? String(row.foundation_ref) : null,
+      runtime: String(row.runtime),
+      model: row.model === null ? null : String(row.model),
+      status: String(row.status) as AgentRun["status"],
+      startedAt: String(row.started_at),
+      finishedAt: row.finished_at === null ? null : String(row.finished_at),
+      resultSummary:
+        row.result_summary === null ? null : String(row.result_summary),
+      errorSummary:
+        row.error_summary === null ? null : String(row.error_summary),
     };
   }
 }

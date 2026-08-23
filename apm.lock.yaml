@@ -1,0 +1,153 @@
+lockfile_version: '1'
+generated_at: '2026-08-23T09:16:30.254227+00:00'
+apm_version: 0.26.0
+dependencies:
+- repo_url: akihiroxob/agent-foundation
+  name: agent-harness
+  host: github.com
+  resolved_commit: 8942b923cce50c97c76efbab62c77514d851a710
+  version: 0.1.0
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/investigate-bug
+  - .agents/skills/investigate-bug/SKILL.md
+  - .agents/skills/review-documentation-impact
+  - .agents/skills/review-documentation-impact/SKILL.md
+  - .agents/skills/review-documentation-impact/agents/openai.yaml
+  - .claude/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py
+  - .claude/rules/base.md
+  - .claude/skills/investigate-bug
+  - .claude/skills/investigate-bug/SKILL.md
+  - .claude/skills/review-documentation-impact
+  - .claude/skills/review-documentation-impact/SKILL.md
+  - .claude/skills/review-documentation-impact/agents/openai.yaml
+  - .codex/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py
+  deployed_file_hashes:
+    .agents/skills/investigate-bug/SKILL.md: sha256:251264fa6c1203d688c50e3dd1a0765580aa47380cba97308563c88240f21078
+    .agents/skills/review-documentation-impact/SKILL.md: sha256:3abf6480cef2a400bfa73dc043f7e58ed1b62358689b50a3438a29c6b91e3d71
+    .agents/skills/review-documentation-impact/agents/openai.yaml: sha256:df87dc907c6371caf83d9128e14ffa88ade6af0f3d3d0ff4b0fce00dab4b33c5
+    .claude/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py: sha256:d9184efbb32d0046d8e56001ead5630203fa1a826891d34e7215452fdc689a09
+    .claude/rules/base.md: sha256:10654e338409243e9ebda77a2d2d427b6e5ab9b58355b0a610b8213cdaeb8017
+    .claude/skills/investigate-bug/SKILL.md: sha256:251264fa6c1203d688c50e3dd1a0765580aa47380cba97308563c88240f21078
+    .claude/skills/review-documentation-impact/SKILL.md: sha256:3abf6480cef2a400bfa73dc043f7e58ed1b62358689b50a3438a29c6b91e3d71
+    .claude/skills/review-documentation-impact/agents/openai.yaml: sha256:df87dc907c6371caf83d9128e14ffa88ade6af0f3d3d0ff4b0fce00dab4b33c5
+    .codex/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py: sha256:d9184efbb32d0046d8e56001ead5630203fa1a826891d34e7215452fdc689a09
+  content_hash: sha256:447615c65955ad5fe3ca6ac0088fe407980242eab0ce2f30b9768e0c89bd0ce8
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:d9184efbb32d0046d8e56001ead5630203fa1a826891d34e7215452fdc689a09
+- kind: project-relative
+  target: claude
+  value: .claude/rules/base.md
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:10654e338409243e9ebda77a2d2d427b6e5ab9b58355b0a610b8213cdaeb8017
+- kind: project-relative
+  target: claude
+  value: .claude/skills/investigate-bug
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/investigate-bug/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:251264fa6c1203d688c50e3dd1a0765580aa47380cba97308563c88240f21078
+- kind: project-relative
+  target: claude
+  value: .claude/skills/review-documentation-impact
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/review-documentation-impact/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:3abf6480cef2a400bfa73dc043f7e58ed1b62358689b50a3438a29c6b91e3d71
+- kind: project-relative
+  target: claude
+  value: .claude/skills/review-documentation-impact/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:df87dc907c6371caf83d9128e14ffa88ade6af0f3d3d0ff4b0fce00dab4b33c5
+- kind: project-relative
+  target: codex
+  value: .agents/skills/investigate-bug
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/investigate-bug/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:251264fa6c1203d688c50e3dd1a0765580aa47380cba97308563c88240f21078
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-documentation-impact
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-documentation-impact/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:3abf6480cef2a400bfa73dc043f7e58ed1b62358689b50a3438a29c6b91e3d71
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-documentation-impact/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:df87dc907c6371caf83d9128e14ffa88ade6af0f3d3d0ff4b0fce00dab4b33c5
+- kind: project-relative
+  target: codex
+  value: .codex/hooks/agent-foundation/.apm/hooks/scripts/check-dangerous-command.py
+  runtime: null
+  scope: project
+  owners:
+  - akihiroxob/agent-foundation
+  active_owner: akihiroxob/agent-foundation
+  content_hash: sha256:d9184efbb32d0046d8e56001ead5630203fa1a826891d34e7215452fdc689a09

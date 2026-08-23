@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/server.ts",
+    "prestart": "npm run build",
     "dev": "npm-run-all --parallel dev:server dev:frontend",
     "dev:server": "tsx watch src/server.ts",
     "dev:frontend": "vite --config src/frontend/vite.config.ts",

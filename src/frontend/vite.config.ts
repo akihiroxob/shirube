@@ -8,8 +8,8 @@ export default defineConfig({
   server: {
     port: 51744,
     proxy: {
-      "/api": "http://localhost:51743",
-      "/health": "http://localhost:51743",
+      "/api": "http://localhost:51740",
+      "/health": "http://localhost:51740",
     },
   },
   build: {

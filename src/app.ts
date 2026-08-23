@@ -10,6 +10,7 @@ import { createMcpServer } from "./mcp/createMcpServer.js";
 import {
   artifactInputSchemas,
   artifactTypeSchema,
+  foundationRefSchema,
   projectSchema,
   relationTypeSchema,
 } from "./schemas.js";
@@ -126,20 +127,35 @@ export const createApp = (service: ControlPlaneService) => {
     const body = z
       .object({
         owner: z.string().min(1),
+        attempt: z.number().int().positive(),
         leaseSeconds: z.number().int().min(30).max(3600).default(300),
       })
       .parse(await c.req.json());
     return c.json(
-      service.renewManagerWork(c.req.param("id"), body.owner, body.leaseSeconds),
+      service.renewManagerWork(
+        c.req.param("id"),
+        body.owner,
+        body.attempt,
+        body.leaseSeconds,
+      ),
     );
   });
 
   app.post("/api/manager-work/:id/complete", async (c) => {
     const body = z
-      .object({ owner: z.string().min(1), success: z.boolean() })
+      .object({
+        owner: z.string().min(1),
+        attempt: z.number().int().positive(),
+        success: z.boolean(),
+      })
       .parse(await c.req.json());
     return c.json(
-      service.completeManagerWork(c.req.param("id"), body.owner, body.success),
+      service.completeManagerWork(
+        c.req.param("id"),
+        body.owner,
+        body.attempt,
+        body.success,
+      ),
     );
   });
 
@@ -148,8 +164,10 @@ export const createApp = (service: ControlPlaneService) => {
       .object({
         projectId: z.string().min(1),
         workId: z.string().min(1),
+        workAttempt: z.number().int().positive(),
+        owner: z.string().min(1),
         agentProfile: z.string().min(1),
-        foundationRef: z.string().min(1),
+        foundationRef: foundationRefSchema.optional(),
         runtime: z.string().min(1),
         model: z.string().optional(),
       })
@@ -161,6 +179,8 @@ export const createApp = (service: ControlPlaneService) => {
     const body = z
       .object({
         success: z.boolean(),
+        owner: z.string().min(1),
+        workAttempt: z.number().int().positive(),
         resultSummary: z.string().optional(),
         errorSummary: z.string().optional(),
       })

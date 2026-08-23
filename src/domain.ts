@@ -29,11 +29,14 @@ export const RELATION_TYPES = [
 
 export type RelationType = (typeof RELATION_TYPES)[number];
 
+export const isPinnedFoundationRef = (value: string) =>
+  /#[0-9a-f]{40}(?:[0-9a-f]{24})?$/i.test(value);
+
 export type Project = {
   id: string;
   name: string;
   description: string | null;
-  foundationRef: string;
+  foundationRef: string | null;
   managerProfile: string;
   createdAt: string;
   updatedAt: string;
@@ -90,8 +93,9 @@ export type AgentRun = {
   id: string;
   projectId: string;
   workId: string;
+  workAttempt: number;
   agentProfile: string;
-  foundationRef: string;
+  foundationRef: string | null;
   runtime: string;
   model: string | null;
   status: "running" | "succeeded" | "failed" | "canceled";

@@ -4,9 +4,9 @@ import { ControlPlaneService } from "../service.js";
 import { artifactInputSchemas, relationTypeSchema } from "../schemas.js";
 import type { ArtifactType } from "../domain.js";
 
-const toResult = (value: unknown) => ({
+export const toResult = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-  structuredContent: value as Record<string, unknown>,
+  structuredContent: { result: value },
 });
 
 export const createMcpServer = (

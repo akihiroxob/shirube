@@ -3,7 +3,7 @@ import { ShirubeDatabase } from "./database.js";
 import { ControlPlaneService } from "./service.js";
 import { createApp } from "./app.js";
 
-const port = Number(process.env.PORT ?? 51743);
+const port = Number(process.env.PORT ?? 51740);
 const database = new ShirubeDatabase();
 const service = new ControlPlaneService(database);
 const app = createApp(service);
