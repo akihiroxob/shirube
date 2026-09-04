@@ -69,7 +69,9 @@ Browser
 agent-foundation -> Skills / Instructions / Policy / Profiles used by agents
 ```
 
-See [`docs/initial-design.md`](docs/initial-design.md) for the detailed domain and integration design.
+See [`docs/product-direction.ja.md`](docs/product-direction.ja.md) for the current
+Japanese product direction and [`docs/initial-design.md`](docs/initial-design.md)
+for the detailed domain and integration design.
 
 ## Stack
 

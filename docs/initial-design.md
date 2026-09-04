@@ -2,6 +2,7 @@
 
 - Status: Draft / initial architecture
 - Date: 2026-08-18
+- Current product direction (Japanese): [`product-direction.ja.md`](product-direction.ja.md)
 - Related systems:
   - Wacha: work coordination (`Story -> Task -> Review -> Acceptance`)
   - Ralph: Worker / Reviewer execution loops
@@ -14,10 +15,11 @@ Shirube is an **Agent Control Plane** that turns human intent into evidence-back
 Shirube owns the upstream and learning state around agent execution:
 
 ```text
-Mission
+Project / opportunity discovery
   -> Research / Evidence
-  -> Decision
-  -> Vision
+  -> human-authorized Mission and Vision (proposed)
+  -> recurring Research / Assumption / Decision
+  -> Strategy
   -> Outcome
   -> Wacha
   -> Result
@@ -50,6 +52,179 @@ A human must be able to start from an Outcome, Vision, Decision, or Wacha Story 
 - Did that work actually achieve the intended Outcome?
 - What did the agent system learn from the execution?
 
+### 1.1 Intent hierarchy
+
+The primary intent and delivery hierarchy is:
+
+```text
+Mission -> Vision -> Outcome -> Wacha Story -> Wacha Task
+   WHY       WHERE     CHANGE        VALUE         WORK
+```
+
+- **Mission** expresses the durable reason the Project exists and the human intent it pursues. It should change rarely, but it may be superseded or canceled.
+- **Vision** describes the desirable future state that would express the Mission. A time horizon may be attached, but the future state is more important than the date itself.
+- **Outcome** describes an observable and evaluable change that indicates progress toward the Vision. It is not a feature or deliverable.
+- **Story** describes an independently acceptable slice of value that contributes to an Outcome. The beneficiary may be a customer, operator, developer, agent, or another system.
+- **Task** describes concrete work required to complete a Story.
+
+The relationships are usually one-to-many, but this is not a strict storage tree. Research, Evidence, Decisions, execution results, and evaluations form provenance relationships across the hierarchy.
+
+### 1.2 Discovery and reasoning lifecycle
+
+Research does not begin only after a Mission exists. A Project is the durable container for discovery performed before the Mission is formulated. Pre-Mission Research and Evidence may therefore use the Project itself as their subject.
+
+Each phase has a different purpose and should produce durable outputs:
+
+| Phase | Purpose / key question | Typical activities | Durable output |
+| --- | --- | --- | --- |
+| Project / opportunity discovery | Is there a problem or opportunity worth pursuing, and for whom? | stakeholder interviews, market and domain research, current-state analysis, constraint and risk discovery | Research Requests, Research, Evidence, explicit unknowns, candidate Mission |
+| Mission formulation | Why should this Project exist, and what is in or out of scope? | synthesize evidence, identify beneficiaries, clarify intent and constraints, compare strategic alternatives | Mission, scope and constraints, supporting Decisions and provenance |
+| Vision formulation | What desirable future state should the Mission lead to? | user and stakeholder research, positioning, scenario analysis, future-state modeling, alternative comparison | Vision, optional target horizon, principles/non-goals, Decisions and rationale |
+| Outcome design | What observable change would demonstrate progress toward the Vision? | establish baseline, model causal assumptions, choose indicators and counter-metrics, define evaluation method | Outcome, success criteria, target or threshold, evaluation plan, linked evidence |
+| Story shaping | What independently acceptable value can cause or enable the Outcome? | solution discovery, journey/story mapping, prototyping, usability checks, technical/security spikes, dependency analysis | Wacha Story, acceptance criteria, Outcome link, relevant evidence and Decisions |
+| Task planning and execution | What concrete work is needed to complete the Story safely? | technical design, decomposition, implementation, tests, review, acceptance | Wacha Tasks, implementation artifacts, reviews, accepted execution result |
+| Outcome evaluation and learning | Did the intended change occur, and what should happen next? | collect measurements and feedback, compare against criteria, diagnose gaps and side effects | Outcome Evaluation, Evidence, new Research/Decision/Outcome/Story, improvement artifacts |
+
+This is not a mandatory waterfall. Research may be requested at any phase, and later evidence may revise or supersede a Mission, Vision, Outcome, or Story.
+
+### 1.3 Choosing a research or strategy method
+
+Frameworks are optional tools selected from the question and uncertainty. Shirube should not require a SWOT, 3C, Five Forces, or STP document for every Project.
+
+| Question to answer | Candidate method | Expected output |
+| --- | --- | --- |
+| How large is the commercial opportunity? | TAM / SAM / SOM, bottom-up market sizing | estimates, assumptions, calculation basis, confidence and limitations |
+| What external changes may affect the Project? | PESTLE, trend and regulatory research | external drivers, risks, opportunities and evidence |
+| How attractive or constrained is the industry structure? | Five Forces | forces, supporting evidence, implications and uncertainties |
+| How do customer, company, and competitors relate? | 3C | customer needs, internal capabilities, competitor alternatives and strategic implications |
+| Which audience should be served and how should it be perceived? | segmentation, targeting, positioning (STP) | segment definitions, selected target, rejected alternatives and positioning choice |
+| What problem or progress matters to users? | interviews, observation, Jobs to Be Done, journey mapping | needs, jobs, pains, current behavior, evidence and limitations |
+| What strategic situation emerges from existing evidence? | SWOT | synthesized strengths, weaknesses, opportunities and threats; not primary evidence by itself |
+| Which future should be prepared for? | scenario planning | scenarios, assumptions, signals and robust choices |
+| Is a proposed solution usable or technically feasible? | prototype, usability test, experiment, technical/security spike | findings, measurements, risks and a proceed/change/stop Decision |
+
+The selection rule is:
+
+```text
+Decision to make
+  -> uncertainty that could change the decision
+  -> Research Question
+  -> smallest suitable method
+  -> Evidence and limitations
+  -> Research conclusion
+  -> Decision with alternatives and rationale
+```
+
+A framework name is never sufficient provenance. Its claims must be traceable to Evidence, and important unknowns and limitations must remain explicit.
+
+### 1.4 Strategy, Decision, and Assumption
+
+These concepts serve different purposes:
+
+- **Strategy** is a coherent set of choices for moving from Vision toward Outcomes. It explains where to focus, how value or advantage will be created, and what will deliberately not be pursued.
+- **Decision** records the resolution of one concrete question. It preserves the considered options, selected option, evidence, rationale, trade-offs, and decision authority.
+- **Assumption** is the canonical term for an uncertain claim that is currently treated as true. If it is wrong, a Strategy, Decision, Outcome, or Story may need to change. The domain and UI should not use `Hypothesis` as a synonym.
+
+Proposed Strategy content:
+
+```text
+Strategy
+  id
+  projectId
+  visionId
+  statement
+  diagnosis
+  focusAreas[]
+  valueApproach
+  choices[]
+  tradeOffs[]
+  nonGoals[]
+  targetHorizon?
+  status: proposed | active | superseded | canceled
+  createdBy
+  createdAt
+  activatedAt?
+```
+
+A Strategy should be linked to its supporting Research, Evidence, Decisions, and Assumptions. It may lead to multiple Outcomes. Whether Strategy becomes a first-class artifact or an explicit grouping of Decisions remains an architectural decision.
+
+Proposed additions to Decision content:
+
+```text
+Decision
+  subject
+  question
+  context
+  options[]
+  selectedOption
+  rationale
+  tradeOffs[]
+  consequences[]
+  decisionAuthority
+  revisitConditions[]
+  status
+```
+
+Proposed Assumption content:
+
+```text
+Assumption
+  id
+  projectId
+  subjectRef
+  statement
+  impactIfWrong: existential | high | medium | low
+  uncertainty: high | medium | low
+  decisionProximity: now | soon | later
+  validationEffort: high | medium | low
+  priority
+  confidence?
+  validationMethod?
+  status: identified | prioritized | testing | supported | refuted | inconclusive | stale | superseded
+  reviewBy?
+  evidenceFreshUntil?
+  createdBy
+  createdAt
+  evaluatedAt?
+```
+
+An Assumption should link to the Evidence that supports or refutes it and to the artifacts that depend on it. `supported` is preferred over `validated` because evidence is contextual and may become stale; it does not prove that an Assumption is permanently true. Assumption is the canonical term. Making it a first-class artifact is the current recommendation because its validation lifecycle crosses all delivery phases, but that representation is not yet an implementation decision.
+
+The Strategy representation must be resolved before finalizing the Manager workflow and its Instructions.
+
+### 1.5 Assumption validation loop
+
+The system should validate Assumptions as a risk-driven learning loop:
+
+```text
+Research / observation / human input
+  -> identify or update Assumption
+  -> deduplicate and link dependents
+  -> score risk and priority
+  -> design the smallest credible validation
+  -> execute research / experiment / delivery work
+  -> collect Evidence
+  -> evaluate as supported / refuted / inconclusive
+  -> propagate the result to dependent artifacts
+  -> schedule revalidation when evidence can become stale
+```
+
+Priority is not a single 2x2 score. The recommended risk dimensions are:
+
+1. **Impact if wrong**: would this invalidate the Mission, Strategy, major investment, legal/safety position, or only a local choice?
+2. **Uncertainty**: how weak, indirect, old, or contradictory is the current Evidence?
+3. **Decision proximity**: how soon will an irreversible or expensive Decision depend on it?
+
+`validationEffort` is a sequencing factor rather than risk itself. Within similar risk, prefer the faster or cheaper credible validation. Avoid false numerical precision; use explainable ordinal values plus a written rationale.
+
+When an Assumption is refuted or becomes stale, Shirube must mark dependent Strategy, Decisions, Outcomes, and Stories as requiring review. It must not silently rewrite or delete prior conclusions.
+
+Not every Assumption validation creates an Outcome:
+
+- If the immediate goal is to learn, create a Research Request or validation experiment and record its Evidence.
+- If the goal is to cause an observable real-world change, create or revise an Outcome.
+- If implementation work is required to test or deliver value, create a Wacha Story linked to the Assumption and, when applicable, the Outcome.
+
 ## 2. System boundary
 
 ### 2.1 Shirube owns
@@ -58,6 +233,7 @@ A human must be able to start from an Outcome, Vision, Decision, or Wacha Story 
 - Mission state
 - Research requests and research results
 - Evidence references
+- Assumptions, validation state, priority, and dependencies
 - Decisions and rationale
 - Vision state
 - Outcomes and success criteria
@@ -586,6 +762,8 @@ ImprovementEvaluation
 
 Shirube must make provenance explicit instead of depending on hidden model reasoning or chat history.
 
+Conversation logs may be imported as human-provided source material, but they are not durable conclusions by themselves. An import must record its source, participants when known, capture time, access classification, and immutable snapshot or locator. Agents then extract candidate Research, Evidence, Decisions, and Assumptions for review. The product must not assume that arbitrary ChatGPT product history is directly accessible through the OpenAI API; conversation import requires an explicit supported adapter or user-provided export.
+
 Use a generic relationship record for cross-artifact traceability.
 
 ```text
@@ -662,6 +840,10 @@ Example event types:
 MISSION_ACTIVATED
 RESEARCH_REQUESTED
 RESEARCH_COMPLETED
+ASSUMPTION_IDENTIFIED
+ASSUMPTION_PRIORITIZED
+ASSUMPTION_EVALUATED
+ASSUMPTION_STALE
 DECISION_REQUIRED
 DECISION_RESOLVED
 VISION_ACTIVATED
@@ -714,31 +896,51 @@ Wacha Story completed / accepted
   -> ManagerWork: OUTCOME_REEVALUATION_REQUIRED
 ```
 
+Shirube-originated recurring or event-driven work may include:
+
+```text
+RESEARCH_REFRESH_REQUIRED
+ASSUMPTION_TRIAGE_REQUIRED
+ASSUMPTION_VALIDATION_REQUIRED
+DEPENDENT_ARTIFACT_REVIEW_REQUIRED
+PROJECT_SUMMARY_REFRESH_REQUIRED
+```
+
+Schedules must include budget, scope, freshness, and stop conditions. "Continuously research everything" is not an executable policy.
+
 The exact Wacha-to-Shirube adapter may initially poll Wacha Change Log. No direct database coupling is allowed.
 
 ## 11. End-to-end delivery loop
 
-### 11.1 Mission to Vision
+### 11.1 Human intent and recurring discovery
 
 ```text
-Human creates Mission
-  -> Mission activated
-  -> ManagerWork created
+Human creates Project / identifies an opportunity
+  -> Human-led or explicitly requested discovery
+  -> pre-Mission Research / Evidence stored against Project
+  -> Human creates and activates Mission and Vision
+  -> recurring and event-driven ManagerWork created
   -> Manager Runner launches Manager Agent
-  -> Manager identifies unknowns
+  -> Manager identifies and prioritizes Assumptions and unknowns
   -> Researcher subagents investigate
   -> Research / Evidence persisted
   -> Decisions persisted
-  -> Vision proposed / activated
+  -> Strategy / Vision revision / Outcome proposals produced when needed
 ```
+
+The current proposal keeps Mission and Vision activation human-authorized. Agents may research and draft them or propose revisions, but must not silently change the active human intent. Mission creation is not the beginning of all research; Project is the pre-Mission discovery container.
 
 ### 11.2 Vision to Outcome
 
 ```text
 Vision active
-  -> Manager defines measurable Outcomes
+  -> Manager maintains Research, Evidence, and prioritized Assumptions
+  -> Manager proposes measurable Outcomes and their evaluation plans
+  -> Decision Policy determines human approval or automatic activation
   -> Outcome active
 ```
+
+Requiring a human to author every Outcome would make human availability a permanent stop in the loop. The current Level 6 proposal lets agents create Outcome drafts and activate low-risk, reversible, policy-compliant Outcomes automatically. Humans would approve high-impact, strategic, costly, regulated, or difficult-to-reverse Outcomes. The exact policy remains undecided.
 
 ### 11.3 Outcome to Wacha
 
@@ -748,6 +950,8 @@ Outcome active
   -> Manager creates Wacha Story / AC / Tasks through Wacha MCP
   -> Shirube stores ExternalExecutionLink
 ```
+
+The Manager Agent runtime therefore needs authorized access to both Shirube MCP and Wacha MCP. Manager Runner remains a thin launcher: it selects the pinned runtime/Profile, supplies both MCP configurations and scoped credentials, launches one fresh Manager process, and records the run. The runner itself must not decide Outcomes or write Wacha work.
 
 ### 11.4 Wacha execution
 
@@ -776,6 +980,25 @@ Wacha work accepted
 ```
 
 This is the product / delivery loop.
+
+### 11.6 Project summaries and notifications
+
+Detailed artifacts remain the source of truth. The system should also maintain a versioned Project Summary derived from them:
+
+```text
+Project Summary
+  Mission and active Vision
+  current Strategy
+  material changes since previous revision
+  highest-priority Assumptions
+  recent Research conclusions and confidence
+  active Outcomes and progress
+  decisions or exceptions requiring human attention
+```
+
+Summary revisions must link to their source artifacts and must not erase history. A human should be able to open a summary statement and inspect the detailed Research, Evidence, Assumption, and Decision behind it.
+
+Slack is a notification and discussion projection, not the system of record. A research-unit notification should contain what changed, why it matters, confidence/limitations, affected Assumptions or Outcomes, whether human action is required, and a Shirube link. Posting and retries should be handled by an idempotent notification adapter rather than embedded in Manager Runner.
 
 ## 12. Mandatory system improvement loop
 
@@ -895,6 +1118,20 @@ Typical human-required decisions:
 
 HumanDecisionRequest should contain a recommendation whenever possible so the human is asked to choose, not to redo the research.
 
+For the Level 6 target, responsibility should default as follows:
+
+| Activity | Agent default | Human responsibility |
+| --- | --- | --- |
+| Mission / active Vision | research, draft, challenge, propose revision | create or activate; approve material revision |
+| Research and Evidence | schedule, execute, summarize, refresh | provide privileged context; challenge material gaps |
+| Assumptions | identify, link, score, validate, monitor staleness | set risk appetite; choose among exceptional high-risk validations |
+| Strategy | synthesize and recommend | approve creation or material direction change |
+| Outcomes | draft, prioritize, evaluate; auto-activate within policy | approve high-impact, costly, regulated, or irreversible Outcomes |
+| Wacha Stories / Tasks | create through Wacha and monitor execution | intervene on policy exceptions or disputed acceptance |
+| Final evaluation | collect evidence and recommend judgment | validate subjective, strategic, legal, or high-consequence results |
+
+Human gates are based on authority and risk, not fixed workflow steps. Low-risk work should continue while an unrelated high-risk Decision waits for a human.
+
 ## 14. Initial MCP surface
 
 Exact names may change, but the initial capability set should resemble:
@@ -907,6 +1144,8 @@ get_mission
 list_missions
 get_research
 list_research
+get_assumption
+list_assumptions
 get_decision
 list_decisions
 get_vision
@@ -917,6 +1156,7 @@ get_human_decision_request
 list_human_decision_requests
 get_improvement_proposal
 list_improvement_proposals
+get_project_summary
 list_changes
 ```
 
@@ -929,6 +1169,9 @@ activate_mission
 create_research_request
 record_research
 record_evidence
+create_assumption
+update_assumption_priority
+record_assumption_evaluation
 create_decision
 record_decision
 create_vision
@@ -936,6 +1179,7 @@ activate_vision
 create_outcome
 activate_outcome
 record_outcome_evaluation
+record_project_summary
 request_human_decision
 ```
 
@@ -968,6 +1212,8 @@ Start with five views:
 ```text
 Active Mission
 Active Vision
+Current Project Summary
+Highest-risk Assumptions
 Active Outcomes
 Waiting for Human
 Manager activity
@@ -1080,9 +1326,11 @@ Implement:
 - Project
 - Mission
 - Research / Evidence
+- Assumption
 - Decision
 - Vision
 - Outcome
+- versioned Project Summary
 - ArtifactRelation
 - Change Log
 - minimal Browser UI
@@ -1090,7 +1338,7 @@ Implement:
 
 Success condition:
 
-> A human creates a Mission, a Manager Agent produces evidence-backed Vision and Outcomes, and the human can trace why they exist.
+> A human creates Mission and Vision, Manager Agents maintain evidence-backed Research and prioritized Assumptions, and Outcome proposals remain traceable to them.
 
 ### Phase 2: Manager Runner
 
@@ -1171,7 +1419,7 @@ The intended operating model is:
 ```text
 Human
   |
-  | Mission / important decisions only
+  | Project framing / Mission / Vision / policy / exceptional decisions
   v
 Shirube
   |
