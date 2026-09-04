@@ -1,0 +1,21 @@
+[Unit]
+Description=Shirube Manager Runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/shirube
+EnvironmentFile=/etc/shirube/manager-runner.env
+ExecStart=/usr/bin/npm run manager-runner
+Restart=always
+RestartSec=5
+KillMode=control-group
+
+# Keep the runner unprivileged. Adjust User/Group to the account that owns the
+# repository checkout and runtime credentials on the execution host.
+User=shirube
+Group=shirube
+
+[Install]
+WantedBy=multi-user.target

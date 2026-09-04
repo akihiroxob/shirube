@@ -1,9 +1,17 @@
 import { spawn } from "node:child_process";
 
 const baseUrl = process.env.SHIRUBE_URL ?? "http://localhost:51740";
-const runnerId = process.env.MANAGER_RUNNER_ID ?? `manager-runner-${process.pid}`;
-const pollMs = Number(process.env.MANAGER_POLL_MS ?? "2000");
-const leaseSeconds = Number(process.env.MANAGER_LEASE_SECONDS ?? "900");
+const runnerId =
+  process.env.SHIRUBE_RUNNER_ID ??
+  process.env.MANAGER_RUNNER_ID ??
+  `manager-runner-${process.pid}`;
+const runnerToken = process.env.SHIRUBE_RUNNER_TOKEN?.trim();
+const pollMs = Number(process.env.SHIRUBE_RUNNER_POLL_MS ?? process.env.MANAGER_POLL_MS ?? "2000");
+const leaseSeconds = Number(
+  process.env.SHIRUBE_RUNNER_LEASE_SECONDS ??
+    process.env.MANAGER_LEASE_SECONDS ??
+    "900",
+);
 const command = process.env.MANAGER_COMMAND?.trim();
 
 if (!command) {
@@ -27,11 +35,26 @@ type ProjectOverview = {
   };
 };
 
+const requestHeaders = () => ({
+  "content-type": "application/json",
+  ...(runnerToken ? { authorization: `Bearer ${runnerToken}` } : {}),
+});
+
 const postJson = async <T>(path: string, body: unknown): Promise<T> => {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: requestHeaders(),
     body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`${path} failed: ${response.status} ${await response.text()}`);
+  }
+  return (await response.json()) as T;
+};
+
+const getJson = async <T>(path: string): Promise<T> => {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: runnerToken ? { authorization: `Bearer ${runnerToken}` } : undefined,
   });
   if (!response.ok) {
     throw new Error(`${path} failed: ${response.status} ${await response.text()}`);
@@ -93,13 +116,9 @@ const tick = async () => {
   });
   if (!work) return;
 
-  const overviewResponse = await fetch(
-    `${baseUrl}/api/projects/${work.projectId}/overview`,
+  const overview = await getJson<ProjectOverview>(
+    `/api/projects/${work.projectId}/overview`,
   );
-  if (!overviewResponse.ok) {
-    throw new Error(`Failed to load project overview for ${work.projectId}`);
-  }
-  const overview = (await overviewResponse.json()) as ProjectOverview;
 
   const run = await postJson<{ id: string }>("/api/agent-runs", {
     projectId: work.projectId,
@@ -150,6 +169,11 @@ const tick = async () => {
 };
 
 console.log(`Manager Runner ${runnerId} watching ${baseUrl}`);
+console.log(
+  runnerToken
+    ? "Runner authentication enabled."
+    : "Runner authentication disabled; use only with a trusted Shirube endpoint.",
+);
 
 while (true) {
   try {
